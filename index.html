@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxi-Teller-Karte</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+  <!-- MarkerCluster -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"
+  />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"
+  />
+
+  <style>
+    :root{
+      --bg:#f6f7f9;
+      --card:#ffffff;
+      --text:#1f2328;
+      --muted:#667085;
+      --border:#e5e7eb;
+      --accent:#2563eb;
+      --shadow: 0 10px 30px rgba(16,24,40,.08);
+      --radius: 14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --red: #e11d48;
+    }
+    *{ box-sizing:border-box; }
+    body{
+      margin:0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:var(--bg);
+    }
+
+    /* Layout */
+    .app{
+      height:100vh;
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:14px;
+      padding:14px;
+    }
+    @media (max-width: 920px){
+      .app{ grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    }
+
+    /* Sidebar */
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      min-height: 320px;
+    }
+    .panel header{
+      padding:16px 16px 12px;
+      border-bottom:1px solid var(--border);
+    }
+    .title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    h1{
+      font-size:16px;
+      margin:0;
+      font-weight:650;
+      letter-spacing:.2px;
+    }
+    .subtitle{
+      margin:6px 0 0;
+      color:var(--muted);
+      font-size:12.5px;
+      line-height:1.35;
+    }
+    .badge{
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      color:var(--muted);
+      background:#fafafa;
+      white-space:nowrap;
+    }
+
+    .panel .content{
+      padding:14px 16px;
+      overflow:auto;
+      flex:1;
+    }
+    .section{
+      margin-bottom:14px;
+      padding-bottom:14px;
+      border-bottom:1px dashed #eef0f3;
+    }
+    .section:last-child{
+      margin-bottom:0;
+      padding-bottom:0;
+      border-bottom:none;
+    }
+    .label{
+      font-size:12px;
+      color:var(--muted);
+      margin:0 0 6px;
+    }
+    .row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    input[type="text"]{
+      width:100%;
+      padding:10px 12px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      font-size:14px;
+      outline:none;
+      background:#fff;
+    }
+    input[type="text"]:focus{
+      border-color: rgba(37,99,235,.45);
+      box-shadow: 0 0 0 4px rgba(37,99,235,.12);
+    }
+    .btn{
+      appearance:none;
+      border:1px solid var(--border);
+      background:#fff;
+      color:var(--text);
+      padding:9px 12px;
+      border-radius:12px;
+      font-size:13px;
+      font-weight:600;
+      cursor:pointer;
+      transition: transform .05s ease, box-shadow .15s ease, border-color .15s ease;
+      user-select:none;
+    }
+    .btn:hover{ border-color:#d6d9df; box-shadow: 0 10px 22px rgba(16,24,40,.08); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{
+      background:var(--accent);
+      border-color: rgba(37,99,235,.35);
+      color:#fff;
+    }
+    .btn.ghost{ background:#fafafa; }
+
+    .rangeWrap{ display:flex; gap:10px; align-items:center; }
+    input[type="range"]{ width:100%; }
+    .rangeVal{
+      min-width:46px;
+      text-align:right;
+      font-family: var(--mono);
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    .chips{ display:flex; flex-wrap:wrap; gap:8px; }
+    .chip{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid var(--border);
+      background:#fff;
+      cursor:pointer;
+      user-select:none;
+      font-size:13px;
+    }
+    .chip input{ margin:0; }
+
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.4;
+      margin-top:8px;
+    }
+    .mono{ font-family: var(--mono); font-size:12px; }
+
+    /* Map Card */
+    .mapCard{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      position:relative;
+      min-height: 320px;
+    }
+    #map{ height:100%; width:100%; min-height: 320px; }
+
+    /* Toast bottom right */
+    .toast{
+      position:absolute;
+      right:14px;
+      bottom:14px;
+      background: rgba(255,255,255,.95);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      box-shadow:var(--shadow);
+      font-size:12.5px;
+      color:var(--muted);
+      max-width: 360px;
+    }
+    .toast strong{ color:var(--text); }
+    .toast .mono{ color:var(--muted); }
+    .toast.hidden{ display:none; }
+
+    /* Popup */
+    .popup{
+      max-width: 320px;
+    }
+    .popup .name{
+      font-size:15px;
+      font-weight:700;
+      margin:0 0 8px;
+      letter-spacing:.2px;
+    }
+    .popup .line{
+      margin:0 0 6px;
+      font-size:13px;
+      line-height:1.35;
+    }
+    .popup .muted{
+      color:var(--muted);
+    }
+    .popup .blockTitle{
+      margin:10px 0 6px;
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .popup .reviews{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      margin:0;
+      padding:0;
+      list-style:none;
+    }
+    .popup .reviewItem{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-size:13px;
+    }
+    .stars{
+      font-family: var(--mono);
+      letter-spacing: .06em;
+      white-space: nowrap;
+    }
+    .avg{
+      font-weight:800;
+      color: var(--red);
+    }
+    .popup img{
+      width:100%;
+      border-radius:12px;
+      border:1px solid var(--border);
+      margin-top:8px;
+      display:block;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- Sidebar -->
+    <aside class="panel">
+      <header>
+        <div class="title">
+          <h1>Taxi-Teller-Karte</h1>
+          <span class="badge" id="countBadge">0 Treffer</span>
+        </div>
+        <p class="subtitle">
+          Statische GitHub-Pages-Karte. Daten pflegst du in <span class="mono">data.js</span>.
+          Marker sind immer <strong>rot</strong>. Popups zeigen Adresse, Bewertungen (Sterne + Datum), Durchschnitt und optional ein Bild.
+        </p>
+      </header>
+
+      <div class="content">
+        <div class="section">
+          <div class="label">Suche</div>
+          <input id="searchInput" type="text" placeholder="Name, Ort, PLZ, Straße, Tags …" />
+          <div class="hint">Suche prüft Name, Adresse, Ort/PLZ und Tags.</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Mindest-Durchschnitt (optional)</div>
+          <div class="rangeWrap">
+            <input id="minAvg" type="range" min="0" max="5" step="0.5" value="0" />
+            <div class="rangeVal" id="minAvgVal">0.0</div>
+          </div>
+          <div class="hint">Filtert nach dem berechneten Durchschnitt aus allen Bewertungen.</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Kategorien</div>
+          <div class="chips" id="categoryChips"></div>
+          <div class="hint">Kategorien werden automatisch aus <span class="mono">data.js</span> generiert.</div>
+        </div>
+
+        <div class="section">
+          <div class="label">Aktionen</div>
+          <div class="row">
+            <button class="btn primary" id="btnRuhr">Zum Ruhrgebiet</button>
+            <button class="btn ghost" id="btnReset">Filter zurücksetzen</button>
+          </div>
+          <div class="hint">
+            Klick auf die Karte zeigt Koordinaten unten rechts (Hilfsfunktion fürs Einpflegen).
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Map -->
+    <main class="mapCard">
+      <div id="map"></div>
+      <div class="toast hidden" id="toast">
+        <strong>Koordinaten</strong><br/>
+        <span class="mono" id="toastCoords">—</span>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- Leaflet -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- MarkerCluster -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+  <!-- Data -->
+  <script src="./data.js"></script>
+
+  <script>
+    // ---------- Helpers ----------
+    function normalize(str){
+      return (str ?? "")
+        .toString()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "");
+    }
+
+    function safeNum(n, fallback = 0){
+      const x = Number(n);
+      return Number.isFinite(x) ? x : fallback;
+    }
+
+    function starsText(stars){
+      // 0..5, half-star supported
+      const s = Math.max(0, Math.min(5, safeNum(stars, 0)));
+      const full = Math.floor(s);
+      const half = (s - full) >= 0.5 ? 1 : 0;
+      const empty = 5 - full - half;
+      return "★".repeat(full) + (half ? "½" : "") + "☆".repeat(empty);
+    }
+
+    function avgStars(reviews){
+      if (!Array.isArray(reviews) || reviews.length === 0) return 0;
+      const vals = reviews.map(r => safeNum(r.stars, 0)).filter(v => Number.isFinite(v));
+      if (vals.length === 0) return 0;
+      const sum = vals.reduce((a,b) => a + b, 0);
+      return sum / vals.length;
+    }
+
+    function makeRedDotIcon(){
+      return L.divIcon({
+        className: "",
+        html: `
+          <div style="
+            width:14px;height:14px;border-radius:999px;
+            background:var(--red);
+            border:2px solid white;
+            box-shadow:0 6px 18px rgba(16,24,40,.18);
+          "></div>
+        `,
+        iconSize: [14,14],
+        iconAnchor: [7,7],
+        popupAnchor: [0,-8]
+      });
+    }
+
+    function escapeHtml(str){
+      return (str ?? "").toString()
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // ---------- Map ----------
+    const ruhrView = { center: [51.455, 7.01], zoom: 11 };
+
+    const map = L.map("map", { zoomControl: true })
+      .setView(ruhrView.center, ruhrView.zoom);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap-Mitwirkende"
+    }).addTo(map);
+
+    // Cluster layer
+    const cluster = L.markerClusterGroup({
+      showCoverageOnHover: false,
+      spiderfyOnMaxZoom: true,
+      disableClusteringAtZoom: 16
+    });
+    map.addLayer(cluster);
+
+    // Toast coords helper
+    const toast = document.getElementById("toast");
+    const toastCoords = document.getElementById("toastCoords");
+    let toastTimer = null;
+
+    map.on("click", (e) => {
+      const lat = e.latlng.lat.toFixed(6);
+      const lng = e.latlng.lng.toFixed(6);
+      toastCoords.textContent = `lat: ${lat}, lng: ${lng}`;
+      toast.classList.remove("hidden");
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.add("hidden"), 6000);
+    });
+
+    // ---------- UI ----------
+    const searchInput = document.getElementById("searchInput");
+    const minAvg = document.getElementById("minAvg");
+    const minAvgVal = document.getElementById("minAvgVal");
+    const categoryChips = document.getElementById("categoryChips");
+    const countBadge = document.getElementById("countBadge");
+    const btnRuhr = document.getElementById("btnRuhr");
+    const btnReset = document.getElementById("btnReset");
+
+    // ---------- Data Prep ----------
+    // Expect `spots` from data.js
+    const allSpots = (Array.isArray(spots) ? spots : []).map(s => ({
+      ...s,
+      lat: safeNum(s.lat, NaN),
+      lng: safeNum(s.lng, NaN),
+      tags: Array.isArray(s.tags) ? s.tags : [],
+      reviews: Array.isArray(s.reviews) ? s.reviews : [],
+    }));
+
+    // Categories
+    const categories = Array.from(new Set(allSpots.map(s => s.category).filter(Boolean)))
+      .sort((a,b) => a.localeCompare(b, "de"));
+    const categoryState = new Map();
+    categories.forEach(c => categoryState.set(c, true));
+
+    function renderCategoryChips(){
+      categoryChips.innerHTML = "";
+      if (categories.length === 0) {
+        const p = document.createElement("div");
+        p.className = "hint";
+        p.textContent = "Keine Kategorien gefunden (prüfe data.js).";
+        categoryChips.appendChild(p);
+        return;
+      }
+
+      categories.forEach(cat => {
+        const id = `cat_${normalize(cat).replace(/[^a-z0-9]+/g, "_")}`;
+        const wrapper = document.createElement("label");
+        wrapper.className = "chip";
+        wrapper.setAttribute("for", id);
+        wrapper.innerHTML = `
+          <input type="checkbox" id="${id}" ${categoryState.get(cat) ? "checked" : ""} />
+          <span>${escapeHtml(cat)}</span>
+        `;
+        wrapper.querySelector("input").addEventListener("change", (e) => {
+          categoryState.set(cat, e.target.checked);
+          applyFilters();
+        });
+        categoryChips.appendChild(wrapper);
+      });
+    }
+    renderCategoryChips();
+
+    // ---------- Popup HTML ----------
+    function popupHtml(spot){
+      const name = escapeHtml(spot.name);
+      const street = escapeHtml(`${spot.street ?? ""} ${spot.houseNumber ?? ""}`.trim());
+      const cityLine = escapeHtml(`${spot.postalCode ?? ""} ${spot.city ?? ""}`.trim());
+      const avg = avgStars(spot.reviews);
+      const avgText = avg > 0 ? `${avg.toFixed(1)} / 5` : "—";
+
+      const reviews = (Array.isArray(spot.reviews) ? spot.reviews : [])
+        .slice()
+        // optional: newest first if date is ISO YYYY-MM-DD
+        .sort((a,b) => (b.date ?? "").localeCompare(a.date ?? ""));
+
+      const reviewsHtml = reviews.length
+        ? `<ul class="reviews">
+            ${reviews.map(r => {
+              const s = safeNum(r.stars, 0);
+              const d = escapeHtml(r.date ?? "—");
+              return `
+                <li class="reviewItem">
+                  <span class="stars">${escapeHtml(starsText(s))}</span>
+                  <span class="muted">${d}</span>
+                </li>
+              `;
+            }).join("")}
+          </ul>`
+        : `<div class="line muted">Noch keine Bewertung hinterlegt.</div>`;
+
+      const imgHtml = spot.imageUrl
+        ? `<div class="blockTitle">Bild</div>
+           <img src="${escapeHtml(spot.imageUrl)}" alt="${name}"/>`
+        : `<div class="blockTitle">Bild</div>
+           <div class="line muted">Kein Bild hinterlegt.</div>`;
+
+      return `
+        <div class="popup">
+          <div class="name">${name}</div>
+
+          <div class="line">${street || "<span class='muted'>Adresse fehlt</span>"}</div>
+          <div class="line">${cityLine || "<span class='muted'>PLZ/Ort fehlt</span>"}</div>
+
+          <div class="blockTitle">Bewertungen</div>
+          ${reviewsHtml}
+
+          <div class="blockTitle">Durchschnitt</div>
+          <div class="line avg">${escapeHtml(avgText)}</div>
+
+          ${imgHtml}
+        </div>
+      `;
+    }
+
+    // ---------- Marker Rendering ----------
+    function clearMarkers(){
+      cluster.clearLayers();
+    }
+
+    function renderMarkers(list){
+      clearMarkers();
+
+      list.forEach(spot => {
+        if (!Number.isFinite(spot.lat) || !Number.isFinite(spot.lng)) return;
+
+        const marker = L.marker([spot.lat, spot.lng], { icon: makeRedDotIcon() })
+          .bindPopup(popupHtml(spot), { maxWidth: 340 });
+
+        cluster.addLayer(marker);
+      });
+
+      countBadge.textContent = `${list.length} Treffer`;
+    }
+
+    // ---------- Filtering ----------
+    function applyFilters(){
+      const q = normalize(searchInput.value.trim());
+      const minAvgValue = safeNum(minAvg.value, 0);
+
+      const enabledCategories = new Set(categories.filter(cat => categoryState.get(cat)));
+
+      const filtered = allSpots.filter(s => {
+        // category
+        if (categories.length > 0 && !enabledCategories.has(s.category)) return false;
+
+        // minimum average (0..5)
+        const a = avgStars(s.reviews);
+        if (a < minAvgValue) return false;
+
+        // search across name + address + city + plz + tags
+        if (q.length > 0) {
+          const hay = normalize([
+            s.name,
+            s.street, s.houseNumber,
+            s.postalCode, s.city,
+            s.category,
+            ...(s.tags || [])
+          ].filter(Boolean).join(" "));
+          if (!hay.includes(q)) return false;
+        }
+
+        return true;
+      });
+
+      renderMarkers(filtered);
+    }
+
+    // ---------- Events ----------
+    minAvg.addEventListener("input", () => {
+      minAvgVal.textContent = safeNum(minAvg.value, 0).toFixed(1);
+      applyFilters();
+    });
+
+    searchInput.addEventListener("input", applyFilters);
+
+    btnRuhr.addEventListener("click", () => map.setView(ruhrView.center, ruhrView.zoom));
+
+    btnReset.addEventListener("click", () => {
+      searchInput.value = "";
+      minAvg.value = "0";
+      minAvgVal.textContent = "0.0";
+      categories.forEach(c => categoryState.set(c, true));
+      renderCategoryChips();
+      map.setView(ruhrView.center, ruhrView.zoom);
+      applyFilters();
+    });
+
+    // ---------- Initial ----------
+    minAvgVal.textContent = safeNum(minAvg.value, 0).toFixed(1);
+    applyFilters();
+  </script>
+</body>
+</html>
